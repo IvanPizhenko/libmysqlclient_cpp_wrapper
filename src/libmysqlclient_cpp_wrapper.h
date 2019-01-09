@@ -216,13 +216,14 @@ namespace mysql_cpp_wrapper {
 			}
 		}
 
-		void addParameter(enum enum_field_types bufferType, const void* buffer, unsigned long bufferLength)
+		void addParameter(enum enum_field_types bufferType, const void* buffer,
+				std::size_t bufferLength)
 		{
 			MYSQL_BIND parameter;
 			memset(&parameter, 0, sizeof(parameter));
 			parameter.buffer_type = bufferType;
 			parameter.buffer = const_cast<void*>(buffer);
-			parameter.buffer_length = bufferLength;
+			parameter.buffer_length = static_cast<unsigned long>(bufferLength);
 			m_parameters.push_back(parameter);
 		}
 
@@ -261,7 +262,7 @@ namespace mysql_cpp_wrapper {
 			addParameter(MYSQL_TYPE_FLOAT, &value, sizeof(value));
 		}
 
-		void addParameter(const char* value, unsigned long size)
+		void addParameter(const char* value, std::size_t size)
 		{
 			addParameter(MYSQL_TYPE_STRING, value, size);
 		}
@@ -285,7 +286,8 @@ namespace mysql_cpp_wrapper {
 			}
 		}
 
-		void addResult(enum enum_field_types bufferType, void* buffer, std::size_t bufferLength)
+		void addResult(enum enum_field_types bufferType, void* buffer,
+			std::size_t bufferLength)
 		{
 			MYSQL_BIND parameter;
 			memset(&parameter, 0, sizeof(parameter));
@@ -330,7 +332,7 @@ namespace mysql_cpp_wrapper {
 			addResult(MYSQL_TYPE_DOUBLE, &value, sizeof(value));
 		}
 
-		void addResult(char* value, unsigned long size)
+		void addResult(char* value, std::size_t size)
 		{
 			addResult(MYSQL_TYPE_STRING, value, size);
 		}
