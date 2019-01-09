@@ -1,9 +1,8 @@
 /*******************************************************************************
 
-SIMPLE C++ WRAPPER FOR LIBMYSQLCLIENT and LIBMARIADB
+SIMPLE C++ WRAPPER FOR LIBMYSQLCLIENT and LIBMARIADB.
 
-Copyright (c) 2018, Ivan Pizhenko.
-All rights reserved.
+Copyright (c) 2018-2019, Ivan Pizhenko. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
@@ -34,4 +33,8 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "libmysqlclient_cpp_wrapper.h"
 
+namespace mysql_cpp_wrapper {
+
 std::weak_ptr<MySQLClientLibrary> MySQLClientLibrary::m_instance;
+
+} // mysql_cpp_wrapper
