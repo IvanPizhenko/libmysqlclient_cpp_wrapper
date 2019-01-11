@@ -45,6 +45,12 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace mysql_cpp_wrapper {
 
+	namespace Version {
+		constexpr int MAJOR = 0;
+		constexpr int MINOR = 0;
+		constexpr int PATCH = 0;
+	}
+
 	class MySQLClientLibrary;
 	class MySQLConnection;
 	class MySQLPreparedStatement;
