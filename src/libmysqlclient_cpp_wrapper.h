@@ -57,6 +57,7 @@ constexpr int PATCH = 0;
 class MySQLClientLibrary;
 class MySQLConnection;
 class MySQLPreparedStatement;
+class MySQLQuery;
 
 class MySQLClientLibrary {
 private:
@@ -102,7 +103,8 @@ class MySQLConnection {
 private:
 	MySQLConnection(const std::shared_ptr<MySQLClientLibrary>& library) :
 		m_library(library),
-		m_mysql(mysql_init(nullptr))
+		m_mysql(::mysql_init(nullptr)),
+		m_hasActiveQuery(false)
 	{
 		if (!m_mysql) {
 			throw std::runtime_error("failed to initialize connection object");
@@ -120,7 +122,7 @@ public:
 	~MySQLConnection()
 	{
 		if (m_mysql) {
-			mysql_close(m_mysql);
+			::mysql_close(m_mysql);
 		}
 	}
 
@@ -137,7 +139,7 @@ public:
 	void connect(const std::string& host, const unsigned port, const std::string& database,
 		const std::string& user, const char* password, unsigned long clientFlags = 0)
 	{
-		if (!mysql_real_connect(m_mysql, host.c_str(), user.c_str(), password,
+		if (!::mysql_real_connect(m_mysql, host.c_str(), user.c_str(), password,
 			database.c_str(), port, nullptr, clientFlags)) {
 			throw std::runtime_error("could not connect to database server");
 		}
@@ -154,12 +156,151 @@ public:
 
 	unsigned long getServerVersion() const noexcept
 	{
-		return mysql_get_server_version(m_mysql);
+		return ::mysql_get_server_version(m_mysql);
+	}
+
+	void setHasActiveQuery(bool hasActiveQuery) noexcept
+	{
+		m_hasActiveQuery = hasActiveQuery;
+	}
+
+	bool hasActiveQuery() const noexcept
+	{
+		return m_hasActiveQuery;
+	}
+
+	void commit()
+	{
 	}
 
 private:
 	std::shared_ptr<MySQLClientLibrary> m_library;
 	::MYSQL* m_mysql;
+	bool m_hasActiveQuery;
+};
+
+class MySQLQuery {
+private:
+	MySQLQuery(const std::shared_ptr<MySQLConnection>& conn, const char* sql, std::size_t length) :
+		m_conn(conn),
+		m_errorCode(0)
+	{
+		if (conn->hasActiveQuery()) {
+			throw std::logic_error("some query is already running");
+		}
+
+		MYSQL* mysql = (MYSQL*)*conn;
+
+		m_errorCode = ::mysql_real_query(mysql, sql, static_cast<unsigned long>(length));
+		if (m_errorCode) {
+			throw std::runtime_error("failed to execute MySQL query");
+		}
+
+		conn->setHasActiveQuery(true);
+	}
+
+public:
+	static std::shared_ptr<MySQLQuery> create(const std::shared_ptr<MySQLConnection>& conn,
+		const std::string& sql)
+	{
+		return std::shared_ptr<MySQLQuery>(new MySQLQuery(conn, sql.c_str(), sql.length()));
+	}
+
+	static std::shared_ptr<MySQLQuery> create(const std::shared_ptr<MySQLConnection>& conn,
+		const char* sql, std::size_t length)
+	{
+		return std::shared_ptr<MySQLQuery>(new MySQLQuery(conn, sql, length));
+	}
+
+	~MySQLQuery() noexcept
+	{
+		stop();
+	}
+
+	MySQLQuery(const MySQLQuery&) = delete;
+	MySQLQuery(MySQLQuery&&) = delete;
+	MySQLQuery& operator=(const MySQLQuery&) = delete;
+	MySQLQuery& operator=(MySQLQuery&&) = delete;
+
+	unsigned int getFieldCount() const noexcept
+	{
+		return mysql_field_count((MYSQL*)*m_conn);
+	}
+
+	bool hasResults() const noexcept
+	{
+		return getFieldCount() > 0;
+	}
+
+	unsigned long long getNumberOfAffectedRows() const noexcept
+	{
+		return ::mysql_affected_rows((MYSQL*)*m_conn);
+	}
+
+	bool hasMoreResults() const noexcept
+	{
+		return ::mysql_more_results((MYSQL*)*m_conn);
+	}
+
+	bool nextResult()
+	{
+		const auto result = ::mysql_next_result((MYSQL*)*m_conn);
+		if (result > 0) {
+			throw std::runtime_error("failed to fetch next row");
+		}
+		return result == 0;
+	}
+
+	bool useResult()
+	{
+		m_result = ::mysql_use_result((MYSQL*)*m_conn);
+		if (m_result == nullptr && ::mysql_errno((MYSQL*)*m_conn) != 0) {
+			throw std::runtime_error("failed to fetch first row of result");
+		}
+	}
+
+	MYSQL_ROW fetchRow()
+	{
+		checkHaveResult();
+		MYSQL_ROW row = ::mysql_fetch_row(m_result);
+		if (::mysql_errno((MYSQL*)*m_conn) != 0) {
+			throw std::runtime_error("failed to fetch next row");
+		}
+		return row;
+	}
+
+	void stopResult()
+	{
+		checkHaveResult();
+		doStopResult();
+	}
+
+	void stop() noexcept
+	{
+		if (m_result) {
+			doStopResult();
+		}
+		m_conn->setHasActiveQuery(false);
+	}
+
+private:
+
+	void checkHaveResult() const
+	{
+		if (!m_result) {
+			throw std::logic_error("there is no active result");
+		}
+	}
+
+	void doStopResult()
+	{
+		::mysql_free_result(m_result);
+		m_result = nullptr;
+	}
+
+	std::shared_ptr<MySQLConnection> m_conn;
+	int m_errorCode;
+	MYSQL_RES* m_result;
 };
 
 class MySQLPreparedStatement {
@@ -178,8 +319,7 @@ private:
 
 public:
 
-	static std::shared_ptr<MySQLPreparedStatement> create(
-		const std::shared_ptr<MySQLConnection>& conn)
+	static std::shared_ptr<MySQLPreparedStatement> create(const std::shared_ptr<MySQLConnection>& conn)
 	{
 		return std::shared_ptr<MySQLPreparedStatement>(new MySQLPreparedStatement(conn));
 	}
@@ -216,7 +356,7 @@ public:
 		if (len == std::string::npos) {
 			len = strlen(sql);
 		}
-		m_errorCode = mysql_stmt_prepare(m_stmt, sql, static_cast<unsigned long>(len));
+		m_errorCode = ::mysql_stmt_prepare(m_stmt, sql, static_cast<unsigned long>(len));
 		if (m_errorCode != 0) {
 			std::ostringstream err;
 			err << "failed to prepare prepared statement: "
@@ -286,7 +426,7 @@ public:
 		if (m_parameters.empty()) {
 			throw std::logic_error("there are no parameters");
 		}
-		m_errorCode = mysql_stmt_bind_param(m_stmt, &m_parameters[0]);
+		m_errorCode = ::mysql_stmt_bind_param(m_stmt, &m_parameters[0]);
 		if (m_errorCode != 0) {
 			std::ostringstream err;
 			err << "failed to bind parameters prepared statement: "
@@ -351,7 +491,7 @@ public:
 		if (m_results.empty()) {
 			throw std::logic_error("there are no results");
 		}
-		m_errorCode = mysql_stmt_bind_result(m_stmt, &m_results[0]);
+		m_errorCode = ::mysql_stmt_bind_result(m_stmt, &m_results[0]);
 		if (m_errorCode != 0) {
 			std::ostringstream err;
 			err << "failed to bind results prepared statement: "
@@ -362,7 +502,7 @@ public:
 
 	void execute()
 	{
-		m_errorCode = mysql_stmt_execute(m_stmt);
+		m_errorCode = ::mysql_stmt_execute(m_stmt);
 		if (m_errorCode != 0) {
 			std::ostringstream err;
 			err << "failed to execute prepared statement: "
@@ -373,7 +513,7 @@ public:
 
 	bool fetch()
 	{
-		const int res = mysql_stmt_fetch(m_stmt);
+		const int res = ::mysql_stmt_fetch(m_stmt);
 		switch (res) {
 		case 0: return true;
 		case MYSQL_NO_DATA: return false;
@@ -383,7 +523,7 @@ public:
 
 	void stop()
 	{
-		if (mysql_stmt_free_result(m_stmt)) {
+		if (::mysql_stmt_free_result(m_stmt)) {
 			throw std::runtime_error("failed to stop prepared statement");
 		}
 	}
