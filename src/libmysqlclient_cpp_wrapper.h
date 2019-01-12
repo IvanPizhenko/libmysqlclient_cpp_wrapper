@@ -171,6 +171,12 @@ public:
 
 	void commit()
 	{
+		::mysql_commit(m_mysql);
+	}
+
+	void rollback()
+	{
+		::mysql_rollback(m_mysql);
 	}
 
 private:
