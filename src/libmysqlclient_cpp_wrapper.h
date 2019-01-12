@@ -51,7 +51,7 @@ namespace version {
 
 constexpr int MAJOR = 0;
 constexpr int MINOR = 0;
-constexpr int PATCH = 1;
+constexpr int PATCH = 2;
 
 } // namespace version
 
@@ -254,16 +254,16 @@ public:
 	{
 		const auto result = ::mysql_next_result((MYSQL*)*m_conn);
 		if (result > 0) {
-			throw std::runtime_error("failed to fetch next row");
+			throw std::runtime_error("failed to get next result");
 		}
 		return result == 0;
 	}
 
-	bool useResult()
+	void useResult()
 	{
 		m_result = ::mysql_use_result((MYSQL*)*m_conn);
 		if (m_result == nullptr && ::mysql_errno((MYSQL*)*m_conn) != 0) {
-			throw std::runtime_error("failed to fetch first row of result");
+			throw std::runtime_error("failed to start fetching current result");
 		}
 	}
 
@@ -272,7 +272,7 @@ public:
 		checkHaveResult();
 		MYSQL_ROW row = ::mysql_fetch_row(m_result);
 		if (::mysql_errno((MYSQL*)*m_conn) != 0) {
-			throw std::runtime_error("failed to fetch next row");
+			throw std::runtime_error("failed to fetch next row of the current result");
 		}
 		return row;
 	}
