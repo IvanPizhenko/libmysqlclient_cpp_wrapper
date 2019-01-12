@@ -51,7 +51,7 @@ namespace version {
 
 constexpr int MAJOR = 0;
 constexpr int MINOR = 0;
-constexpr int PATCH = 0;
+constexpr int PATCH = 1;
 
 } // namespace version
 
