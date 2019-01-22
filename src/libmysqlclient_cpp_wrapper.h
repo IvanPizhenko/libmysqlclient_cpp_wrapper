@@ -536,6 +536,11 @@ public:
 		}
 	}
 
+	unsigned long long getNumberOfAffectedRows() const noexcept
+	{
+		return ::mysql_affected_rows((MYSQL*)*m_conn);
+	}
+
 private:
 	std::shared_ptr<MySQLConnection> m_conn;
 	MYSQL_STMT* m_stmt;
