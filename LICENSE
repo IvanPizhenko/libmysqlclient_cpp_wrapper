@@ -1,8 +1,8 @@
 SIMPLE C++ WRAPPER FOR LIBMYSQLCLIENT and LIBMARIADB.
 
-Official source code repository: https://github.com/ivanp2015/libmysqlclient_cpp_wrapper
+Official source code repository: https://github.com/IvanPizhenko/libmysqlclient_cpp_wrapper
 
-Copyright (c) 2018-2019, Ivan Pizhenko. All rights reserved.
+Copyright (c) 2018-2020, Ivan Pizhenko. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
